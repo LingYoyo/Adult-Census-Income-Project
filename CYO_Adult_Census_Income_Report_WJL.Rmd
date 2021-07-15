@@ -1,0 +1,925 @@
+---
+title: "Capstone Adult Census Income Report"
+author: "Wanjun Ling"
+date: "7/12/2021"
+output: 
+  pdf_document: 
+    toc: yes
+    fig_caption: yes
+    number_sections: yes
+  word_document: 
+    toc: yes
+    fig_caption: yes
+editor_options: 
+  chunk_output_type: console
+---
+# EXECUTIVE SUMMARY
+
+##   Introduction
+This project aims to tackle an income classification problem on Adult Census Data. The data was extracted from the 1994 Census bureau database by Ronny Kohavi and Barry Becker (Data Mining and Visualization, Silicon Graphics). A set of reasonably clean records was extracted using the following conditions: ((AAGE>16) && (AGI>100) && (AFNLWGT>1) && (HRSWK>0)). The prediction goal is to build a model that predicts whether a person made over $50K a year as best accuracy as possible. 
+
+##   Data Set
+In this project adult.csv with 32561 observations and 15 columns downloaded from kaggle.com will be used as data source. 
+
+##   Objective  
+My goal is to build the model that predicts whether someone earned more than $50k with best accuracy as possible.
+
+##   Key Steps
+The key steps executed in this project includes:
+
+1. DATA PREPARATION: create data frame "adult" from adult.csv by read.csv.
+
+2. EXPLORATORY ANALYSIS: Collect data set statistics, analyze and visualize collarations between multiple continous & categorical variables, then predict target "income".
+
+3. MODELING: Build and evaluate multiple models (logistic regression, classification (decision) tree and random forest) on predicting whether a given adult makes more than 50k.
+
+4. CONCLUSION: Draw a conclusion based on modeling results and provide future research recommendations.
+
+#  METHODS
+
+##  Data Preparation
+Download adult.csv through "https://www.kaggle.com/uciml/adult-census-income" and create data set "adult" through read.csv(). 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##########################################################
+# Create data set "adult" by read.csv and load libraries
+##########################################################
+
+# Note: this process could take a couple of minutes
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ggthemes)) install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(plyr)) install.packages("plyr", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(corrplot)) install.packages("corrplot", repos = "http://cran.us.r-project.org")
+if(!require(caTools)) install.packages("caTools", repos = "http://cran.us.r-project.org")
+if(!require(ROSE)) install.packages("ROSE", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(rpart.plot)) install.packages("rpart.plot", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(ggthemes)
+library(caret)
+library(data.table)
+library(corrplot)
+library(caTools)
+library(ROSE)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+
+
+adult <- read.csv('../projects/Adult-Census-Income/input/adult.csv', stringsAsFactors = FALSE, header = TRUE, strip.white = TRUE)
+```
+
+##   Data Exploration
+
+```{r }
+##########################################################
+# Explore basic statistics, Split it into train set adult_train and validation test set adult_test
+##########################################################
+
+# take a first glance of data set "adult" to understand total observations, variables and what are they.
+str(adult)
+head(adult)
+dim(adult)
+
+# get the basic statistics of data set "adult"
+summary(adult)
+# check any variables with null value
+anyNA(adult)
+```
+
+From above exploration output, we know there are total 32561 observations of 15 variables and no null value in all 15 variables. While we observe there are some variables with character of "?" which need to be handled before further data analysis and processing.
+
+Now we check all variables one by one to see any invalid value exists as well as the proportion of it.
+
+```{r }
+unique(adult$age)
+```
+Variable "age" is a continuous one.
+
+```{r }
+unique(adult$workclass)
+```
+Variable "workclass" is a categorical one which contains invalid value "?".
+
+```{r }
+unique(adult$education)
+```
+Variable "education" is a categorical one.
+
+```{r }
+unique(adult$education.num)
+```
+Variable "education.num" is a continuous one.
+
+```{r }
+unique(adult$marital.status)
+```
+Variable "marital.status" is a categorical one.
+
+```{r }
+unique(adult$occupation)
+```
+Variable "occupation" is a categorical variables which contains invalid value "?".
+
+```{r }
+unique(adult$relationship)
+```
+Variable "relationship" is a categorical one.
+
+```{r }
+unique(adult$race)
+```
+Variable "race" is a categorical one.
+
+```{r }
+unique(adult$sex)
+```
+Variable "sex" is a categorical one.
+
+```{r }
+unique(adult$capital.gain)
+```
+Variable "capital.gain" is a continuous one.
+
+```{r }
+unique(adult$capital.loss)
+```
+Variable "capital.loss" is a continuous one.
+
+```{r }
+unique(adult$hours.per.week)
+```
+Variable "hours.per.week" is a continuous one.
+
+```{r }
+unique(adult$native.country)
+```
+Variable "native.country" is a categorical one which contains invalid value "?".
+
+```{r }
+unique(adult$income)
+```
+Variable "income" is a categorical one.
+
+Check all variables with invalid value "?".
+```{r }
+#Count the invalid value "?"
+colSums(adult =="?")
+```
+
+Now we have an idea of each variable and get the amount of invalid value "?" of variables "workclass", "occupation" , "native.country". We will calculate the percentage of invalid values to determine whether there will be significant impact on our prediction if we remove these observations.
+
+```{r }
+sum(adult$workclass == "?")/nrow(adult)
+sum(adult$occupation == "?")/nrow(adult)
+sum(adult$native.country == "?")/nrow(adult)
+```
+
+We can see the percentage of observations with invalid value "?" are much less (6% and 2%) than the ones with valid values. So we will remove these observations with invalid values in "workclass", "occupation" and "native.country".
+
+```{r }
+# convert "?" to "NA"
+adult[adult == "?"] <- NA
+
+# Omitting NA values
+adult <- na.omit(adult)
+# Check again to make sure all observations are valid
+colSums(adult =="?")
+anyNA(adult)
+```
+
+Now we are fully aware of continuous variables. Befor we move to exploration of categorical variables, we'll split the data set "adult" to two data sets with 80:20 portion. One is training set "adult_train" and the other is validation set "adult_test". 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Convert all character variables to categorical factor : workclass, education, marital-status, occupation, relationship, race, sex, native-country.
+
+adult$workclass <- as.factor(adult$workclass)
+adult$education <- as.factor(adult$education)
+adult$marital.status <- as.factor(adult$marital.status)
+adult$occupation <- as.factor(adult$occupation)
+adult$relationship <- as.factor(adult$relationship)
+adult$race <- as.factor(adult$race)
+adult$sex <- as.factor(adult$sex)
+adult$native.country <- as.factor(adult$native.country)
+```
+```{r message=FALSE, warning=FALSE}
+#split data set "adult" into "adult_train" and "adult_test" with percentage 80% and 20%
+set.seed(20)
+split <- sample.split(adult, SplitRatio = 0.8) # 80:20
+adult_train <- subset(adult, split == TRUE)
+adult_test <- subset(adult, split == FALSE)
+
+str(adult_train)
+str(adult_test)
+```
+
+##    Data Pre-processing
+Before we go to detailed data analysis, we will conduct minor data pre-processing on "adult_train" data sets. The data pre-processing tasks include converting feature "income" to numeric, omit ir-relative continuous variable "fnlwgt" .
+
+```{r message=FALSE, warning=FALSE}
+# First check the correlation between continous variables "age", "fnlwgt", "capital.gain", "capital.loss", "hours.per.week" and "income". 
+# Before we check the correlation, we need convert "income" to numeric variable
+
+adult_train$income<-ifelse(adult_train$income=='<=50K',0,1)
+
+# list the correlations between continous variables "age", "fnlwgt",  "capital.gain", "capital.loss", "hours.per.week" and "income"
+
+continous_factors_cor <- cor(adult_train %>% select_if(is.numeric))
+as.matrix(round(continous_factors_cor,3))
+
+# visualize the correlation between continous variables and income
+
+columns <- c(1, 3, 5, 11, 12, 13, 15)
+corrplot(cor(adult_train[,columns]))
+```
+
+
+From the correlation plot, we can see that these numerical variables do not seem to be highly correlated with target "income". However we still see that "education.num" is somehow correlated with target "income" with correlation 0.335. Then followed by "age" with correlation 0.241, "hours.per.week" with correlation 0.233 and "capital.gain" with correlation 0.222. The "fnlwgt", which may be some kind of weighting factor by guessing, is the lowest correlated with target "income" by correlation -0.011. Therefore we think "fnlwgt" can be ignored and dropped.
+
+```{r}
+# drop variable "fnlwgt" from adult_train
+adult_train <- adult_train[,-3]
+```
+
+```{r message=FALSE, warning=FALSE}
+adult_train$income <- mapvalues(adult_train$income, from = c(0,1), to = c('<=50K','>50K'))
+adult_train$income <- as.factor(as.character(adult_train$income))
+```
+
+##   Data Analysis
+After data pre-processing, we start further analysis on the distribution of target "income" in data set "adult_train".
+
+```{r }
+# Explore target "income" distribution
+sum(adult_train$income == "<=50K")/nrow(adult_train)
+sum(adult_train$income == ">50K")/nrow(adult_train)
+
+#hist(adult_train$income)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = adult_train) +
+  aes(x=income) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 45)) + ggtitle("Income Distribution") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+we can see that the target income has a very imbalanced distribution in data set "adult_train". Almost around 75% observations are below 50k income.This imbalanced feature could be a challenge to our predication. This will be verified in modeling session.
+
+Since we have already known that there are multiple continuous variables in "adult_train" may be somehow relative with target income, we analyze the possible correlated variables first.
+
+```{r}
+#Further analysis on correlation between continuous variables and target "income"
+# 1. Education.num
+summary(adult_train$education.num)
+```
+
+Now let us visualize the distribution of continuous variable "education.num" and distributions with target "income" together.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize education.num distribution
+ggplot(data = adult_train) +
+  aes(x=education.num) +
+  geom_bar(fill="blue") + ggtitle("Education.num Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Plot "education.num" VS "income" by amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize amounts of "education.num VS income"
+ggplot(data = adult_train) + aes(x=education.num,fill=income) + geom_histogram(binwidth =2) + scale_fill_manual(values=c("blue","green")) +
+scale_x_continuous(breaks=seq(0, 20, by= 1)) + ggtitle("Education.num VS Income Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Plot "education.num" VS "income" by frequency
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize frequency of "education.num VS income"
+ggplot(data = adult_train) +
+  aes(x = education.num, fill = income) +
+  geom_histogram(binwidth=2, position="fill") + scale_fill_manual(values=c("blue","green")) + 
+  scale_x_continuous(breaks=seq(0, 20, by= 1)) +
+  labs(x="Education.num", y="Frequency") + ggtitle("Education.num VS Income Frequency") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+From above analysis and visualized plots we can see that both median and mean values of education.num are around 10. Most of people have education.num over 7. The plots also show the bigger number of the education.num the more likely to earn annual income over 50k.
+
+```{r}
+# 2. Age
+summary(adult_train$age)
+```
+
+Now let us visualize the distribution of continuous variable "age" and distributions with target "income" together.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize the distribution of continuous variable "age"
+ggplot(data = adult_train) +
+  aes(x=age) +
+  geom_bar(fill="blue") + ggtitle("Age Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Plot "age" VS "income" by amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize amounts of "age VS income"
+ggplot(data = adult_train) + aes(x=age,fill=income) + geom_histogram(binwidth =3) + scale_fill_manual(values=c("blue","green")) + scale_x_continuous(breaks=seq(15, 90, by= 5)) +  ggtitle("Age VS Income Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Plot "education.num" VS "income" by frequency
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize frequency of "age VS income"
+ggplot(data = adult_train) +
+  aes(x = age, fill = income) +
+  geom_histogram(binwidth=5, position="fill") + scale_fill_manual(values=c("blue","green")) + scale_x_continuous(breaks=seq(15, 90, by= 5)) + labs(x="Age", y="Frequency") + ggtitle("Age VS Income Frequency") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+From above analysis and visualized plots we can see that the minimum and maximum values of age are 17 and 90. The mean value of age is around 38. The majority age distribution are between 28 and 47. From the charts above we can see that people who aged from 35 to 65 are more likely to have a income over 50k. 
+
+```{r}
+# 3. Hours.per.week
+summary(adult_train$hours.per.week)
+```
+
+Now let us visualize the distribution of continuous variable "hours.per.week" and distributions with target "income" together.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize the distribution of continuous variable "hours.per.week"
+ggplot(data = adult_train) +
+  aes(x=hours.per.week) +
+  geom_bar(fill="blue") + ggtitle("Hours.per.week Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+Plot "hours.per.week" VS "income" by amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Visualize amounts of "hours.per.week VS income"
+ggplot(data = adult_train) + aes(x=hours.per.week,fill=income) + geom_histogram(binwidth =3) + scale_fill_manual(values=c("blue","green")) + scale_x_continuous(breaks=seq(1, 100, by= 10)) +  ggtitle("Hours.per.week VS Income Distribution") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+Plot "hours.per.week" VS "income" by frequency
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Visualize frequency of "hours.per.week VS income"
+ggplot(data = adult_train) +
+  aes(x = hours.per.week, fill = income) +
+  geom_histogram(binwidth=5, position="fill") + scale_fill_manual(values=c("blue","green")) + scale_x_continuous(breaks=seq(1, 100, by= 10)) + labs(x="Hours.per.week", y="Frequency") + ggtitle("Hours.per.week VS Income Frequency")  + theme(plot.title = element_text(hjust = 0.5)) 
+
+```
+
+We can see that people who worked over 35 hours per week are more likely to have a income over 50k. 
+
+```{r}
+# 4. capital.gain & capital.loss & capital.gain - capital.loss
+summary(adult_train$capital.gain)
+```
+
+Now let us visualize the distribution of continuous variable "capital.gain" and distributions with target "income" together.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Visualize the distribution of continuous variable "capital.gain"
+hist(adult_train$capital.gain, col="blue", main="Capital Gain")
+
+```
+
+Plot "capital.gain" VS "income" by frequency
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize frequency of "capital.gain VS income"
+ggplot(data = adult_train) +
+  aes(x = capital.gain, fill = income) +
+  geom_histogram(binwidth=5, position="fill") + scale_fill_manual(values=c("blue","green")) +
+  scale_x_continuous(breaks=seq(0, 100000, by= 10000)) +
+  labs(x="Capital.gain", y="Frequency") + ggtitle("Capital.gain VS Income Frequency") + theme(plot.title = element_text(hjust = 0.5))  
+
+```
+
+Boxplot of capital.gain
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(adult_train, aes(x=capital.gain))+ geom_boxplot()
+
+```
+
+The mean value of capital.gain is 1093. The minimum, 1st quarter,median and 3rd quarter values are all 0 which means a person either has no capital gain or have capital gains with a large amount. The majority people don't have capital gain. The distribution of capital.gain is right skewed. Also from above boxplot we can see the max value 99999 of capital gain would be a potential outlier.
+
+```{r}
+summary(adult_train$capital.loss)
+```
+
+Now let us visualize the distribution of continuous variable "capital.loss" and distributions with target "income" together.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize the distribution of continuous variable "capital.loss"
+hist(adult_train$capital.loss, col="blue", main="Capital Loss")
+
+```
+
+Plot "capital.loss" VS "income" by frequency
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Visualize frequency of "capital.loss VS income"
+ggplot(data = adult_train) +
+  aes(x = capital.loss, fill = income) +
+  geom_histogram(binwidth=5, position="fill") + scale_fill_manual(values=c("blue","green")) +
+  #scale_x_continuous(breaks=seq(0, 100000, by= 10000)) +
+  labs(x="Capital.loss", y="Frequency") + ggtitle("Capital.loss VS Income Frequency") + theme(plot.title = element_text(hjust = 0.5))  
+
+```
+
+Boxplot of capital.loss
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(adult_train, aes(x=capital.loss))+ geom_boxplot()
+
+```
+
+The mean value of capital.loss is 88. The minimum, 1st quarter,median and 3rd quarter values are all 0 which means a person either has no capital loss or have capital loss with a large amount.   
+
+Now let us check net capital.
+
+```{r}
+#Net Capital
+hist(adult_train$capital.gain-adult_train$capital.loss, col="blue", main="Net Capital")
+```
+
+The majority net capital is below 0 which means most of people have net capital loss.
+
+
+Besides continuous variables, we also need further check which categorical variables may impact final prediction of the target income and how it may impact.
+
+Now we will move to analysis of categorical variables.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+adult_train$income <- mapvalues(adult_train$income, from = c(0,1), to = c('<=50K','>50K'))
+
+```
+
+Plot "workclass" VS "income" from both amount and frequency points of view
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# 5. workclass
+#plot workclass distribution
+ggplot(data = adult_train) +
+  aes(x=workclass) +
+  geom_bar(fill="blue") + ggtitle("Workclass Distribution") + theme(plot.title = element_text(hjust = 0.5))
+# we can see that the majority of people are in Private workclass
+
+table(adult_train$workclass, adult_train$income)
+
+#Plot Workclass VS Income from amount point of view
+ggplot(adult_train, aes(x = workclass, fill = income)) + geom_bar() +  scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 45)) + ggtitle("Workclass VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Plot Workclass VS Income from frequency point of view
+ggplot(adult_train, aes(x = workclass, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 45)) + ggtitle("Workclass VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We can see people who work in the private sector has the largest number of population (3899) earning more than 50K per year. While in terms of the proportion, the people work in self-emp-inc have the biggest proportion over 56%.
+
+Plot "occupation" VS "income" from both amount and frequency points of view
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#6. Occupation
+
+#plot occupation distribution
+ggplot(data = adult_train) +
+  aes(x=occupation) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Occupation Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+we can see that the majority people are in private workclass.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+table(adult_train$occupation, adult_train$income)
+
+#Plot occupation VS Income from amount point of view
+ggplot(adult_train, aes(x = occupation, fill = income)) + geom_bar() +  scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Occupation VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Plot occupation VS Income from frequency point of view
+ggplot(adult_train, aes(x = occupation, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Occupation VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+we can see that the majority people are in private workclass and people with occupation of executive management and professional specialty are more likely to have income over 50k from both amount and proportion point of view.
+
+
+Plot "education" VS "income" from both amount and frequency points of view
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#7. education
+
+#plot education distribution
+ggplot(data = adult_train) +
+  aes(x=education) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Education Distribution") + theme(plot.title = element_text(hjust = 0.5))
+# we can see that the most of people are with education level of HS-grad followed by level of Some-college and Bachelors
+
+table(adult_train$education, adult_train$income)
+
+#Plot Education VS Income from amount points of view
+ggplot(adult_train, aes(x = education, fill = income)) + geom_bar() + scale_fill_manual(values=c("blue","green")) + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Education VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+Plot Education VS Income from frequency points of view
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Plot Education VS Income from frequency points of view
+ggplot(adult_train, aes(x = education, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Education VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+we can see that the most of people are with education level of HS-grad followed by level of Some-college and Bachelors. People with Bachelors degree are more likely to have income over 50k from both amount and proportion point of view. People with doctorate education background have the best chance to earn over 50k. The charts above meet common sense that people with higher education background are more likely to have better income level even if we observed that very few people with education background lower than 12th also had income over 50k.
+
+Plot "marital.status" VS "income" from both amount and frequency points of view
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#8. marital.status
+
+#plot marital.status distribution
+ggplot(data = adult_train) +
+  aes(x=marital.status) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Marital.status Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+We can see that the most of people are with marital status of Married-civ-spouse followed by status of Never-married and Divorced
+
+Now plot marital.status VS Income from amount and frequency points of view
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+table(adult_train$marital.status, adult_train$income)
+
+#Plot marital.status VS Income from amount point of view
+ggplot(adult_train, aes(x = marital.status, fill = income)) + geom_bar() + scale_fill_manual(values=c("blue","green")) + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Marital.status VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Plot marital.status VS Income from frequency point of view
+ggplot(adult_train, aes(x = marital.status, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Marital.status VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We can see that the most of people are with marital status of Married-civ-spouse followed by status of Never-married and Divorced . Meanwhile people with married status have much higher proportion of earning over 50k income per year.
+
+Plot "relationship" VS "income" from amount and frequency points of view.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#9. Relationship
+#plot relationship distribution
+ggplot(data = adult_train) +
+  aes(x=relationship) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Relationship Distribution") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We can see that the majority people in the sample data set are husband, followed by Not-in-family, Own-child and unmarried.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+table(adult_train$relationship, adult_train$income)
+#Plot relationship VS Income from both amount and frequency angles
+ggplot(adult_train, aes(x = relationship, fill = income)) + geom_bar() + scale_fill_manual(values=c("blue","green")) + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Relationship VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(adult_train, aes(x = relationship, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Relationship VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We can see that the majority people in data set "adult_train" are husband, followed by Not-in-family, Own-child and unmarried. Husbands have the largest number of population (4549) earning more than 50K per year. While in terms of the proportion, wives have the biggest proportion close to 50% earning over 50k income. This result is quite reasonable since we already know that married people are more likely to earn over 50k income.
+
+Plot "race" VS "income" from both amount and frequency angles
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#10. Race
+#plot race distribution
+ggplot(data = adult_train) +
+  aes(x=race) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Race Distribution") + theme(plot.title = element_text(hjust = 0.5))
+# we can see that the majority people are White people followed by Black people and Asian-Pac-Islander.
+
+table(adult_train$race, adult_train$income)
+
+#Plot race VS Income from both amount and frequency points of view
+ggplot(adult_train, aes(x = race, fill = income)) + geom_bar() + scale_fill_manual(values=c("blue","green")) + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Race VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(adult_train, aes(x = race, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Race VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We can see that the majority people are White people followed by Black people and Asian-Pac-Islander. It is not surprising that white people have the most amount of earning over 50k income. While in terms of the proportion of earning over 50k income, Asian-Pac-Islander people have slightly bigger proportion of 27% than white people of 26%. This indicates that Asian-Pac-Islander and white people are more likely to have higher income.
+
+Plot "sex" VS "income" from both amount and frequency angles
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#11. Gender
+#plot gender distribution
+ggplot(data = adult_train) +
+  aes(x=sex) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Gender Distribution")  + theme(plot.title = element_text(hjust = 0.5))
+# we can see that the majority people here are male.
+
+table(adult_train$sex, adult_train$income)
+
+
+#Plot Gender VS Income from both amount and frequency angles
+
+ggplot(adult_train, aes(x = sex, fill = income)) + geom_bar() + scale_fill_manual(values=c("blue","green")) + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Gender VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(adult_train, aes(x = sex, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Gender VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+we can see that the majority people here are male. And male are more likely to earn over 50k income with over double proportion compared with female.
+
+Plot "native.country" VS "income" from both amount and frequency points of view
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#12. Native country
+#plot native.country distribution
+ggplot(data = adult_train) +
+  aes(x=native.country) +
+  geom_bar(fill="blue") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Native.country Distribution") + theme(plot.title = element_text(hjust = 0.5))
+# we can see that the native country of significant majority people is the United States.
+
+table(adult_train$native.country, adult_train$income)
+
+#Plot native.country VS Income from both amount and frequency angles
+ggplot(adult_train, aes(x = native.country, fill = income)) + geom_bar() + scale_fill_manual(values=c("blue","green")) + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Native.country VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(adult_train, aes(x = native.country, fill = income)) + geom_bar(position = "fill") + ylab("Frequency") + scale_fill_manual(values=c("blue","green")) +
+theme(axis.text.x = element_text(angle = 90)) + ggtitle("Native.country VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We can see that the native country of significant majority people is the United States. Although people from United States have the most amount of earning over 50k income, while in terms of the proportion of earning over 50k income, people from France, England, Taiwan, India, Japan, Cambodia, China etc have better chance to earn over 50k income.
+
+Now let us further take a look of multiple variable combinations analysis.
+
+Plot "relationship + marital.status" VS "income" from both amount and frequency angles
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Relationship + Marital.status VS Income
+ggplot(data = adult_train) +
+  aes(x=relationship ,fill=income) + 
+  geom_bar() + 
+  facet_wrap(~marital.status)+ 
+  scale_fill_manual(values=c("blue","green")) +
+  theme(axis.text.x = element_text(angle = 90)) + ggtitle("Relationship + Marital.status VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(data = adult_train) +
+  aes(x=relationship ,fill=income) + 
+  geom_bar(position="fill") + ylab("Frequency") +
+  facet_wrap(~marital.status)+ 
+  scale_fill_manual(values=c("blue","green")) +
+  theme(axis.text.x = element_text(angle = 90)) + ggtitle("Relationship + Marital.status VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+Again, we can see married husband and wife have better chance to earn more than 50k income
+
+Plot "workclass + sex" VS "income" from both amount and frequency points of view
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Workclass + Gender VS Income
+ggplot(data = adult_train) +
+  aes(x=sex ,fill=income) + 
+  geom_bar() + 
+  facet_wrap(~workclass)+ 
+  scale_fill_manual(values=c("blue","green")) +
+  theme(axis.text.x = element_text(angle = 90)) + ggtitle("Workclass + Gender VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(data = adult_train) +
+  aes(x=sex ,fill=income) + 
+  geom_bar(position="fill") + ylab("Frequency") +
+  facet_wrap(~workclass)+ 
+  scale_fill_manual(values=c("blue","green")) +
+  theme(axis.text.x = element_text(angle = 90)) + ggtitle("Workclass + Gender VS Income") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+From the chart above we can see that male in Self-emp-inc have the best chance to earn more than 50k income. we can use similar approach to analyze other combinations. The details will not be listed here.
+
+Now we have completed a detailed data analysis for each variables in adult_train. The analysis indicates that a married male adult aging from 35 to 65 who works in self-emp-inc with education above bachelors and capital gains is more likely to earn more than 50k income. We'll verify our finding by variable importance of random forest model in modeling session. 
+
+#Modeling
+
+In this session, we will use three models to predict whether a given adult will earn more than 50k income. There are logistic regression model, classification (decision tree) model and random forest model.
+
+First, let us start from logistic regression model.
+
+```{r message=FALSE, warning=FALSE}
+
+#drop irrelative "fnlwgt" from adult_test
+
+adult_test <- adult_test[,-3]
+adult_test$income <- as.factor(adult_test$income)
+
+#Model 1: Logistic Regression
+
+glmfit <- glm(income~., data=adult_train, family=binomial)
+pred<- predict(glmfit,newdata=adult_test,type = 'response')
+pred_lgr<- ifelse(pred>0.5,">50K","<=50K")
+confusionMatrix(factor(pred_lgr),adult_test$income,positive = ">50K")
+Lgr_Accu <-confusionMatrix(factor(pred_lgr),adult_test$income,positive = ">50K")$overall["Accuracy"]
+
+```
+
+From consufionMatrix, we can see the prediction accuracy of logistic regression is 0.8463. It seems good. While if we take a look of Sensitivity and Specificity, we would not agree that the model is good. With Sensitivity 0.6019 and Specificity 0.9247, it means the model predicts better for income "<=50k" but not income ">50k". This low sensitivity may come from the highly imbalanced distribution of our target income as mentioned at the beginning. Since our target is to predict a given adult with income ">50k", we need a better model to achieve it. We will re-sample train set to check whether we can improve the sensitivity. 
+
+```{r message=FALSE, warning=FALSE}
+
+#resample train set to get a balanced one
+adult_train_balanced <- ovun.sample(income~.,data=adult_train,method = "both")$data
+
+glmfit_balanced <- glm(income~., data=adult_train_balanced, family=binomial)
+pred_balanced<- predict(glmfit_balanced,newdata=adult_test,type = 'response')
+pred_lgr_balanced<- ifelse(pred_balanced>0.5,">50K","<=50K")
+confusionMatrix(factor(pred_lgr_balanced),adult_test$income,positive = ">50K")
+Lgr_Accu_Balanced <- confusionMatrix(factor(pred_lgr_balanced),adult_test$income,positive = ">50K")$overall["Accuracy"]
+
+```
+
+Now we can see the accuracy drops to 0.7984 from 0.8463. However both Sensitivity and Specificity are more balanced with value 0.8389 and 0.7850. The sensitivity increases to favor our target of predicting a given adult with income ">50k".
+
+Then we will move to classification (decision) tree model.
+
+```{r message=FALSE, warning=FALSE}
+
+#Model 2: Classification (Decision) Tree
+
+Dctfit <- rpart(income ~., data = adult_train, method = "class")
+Pred_Dct<- predict(Dctfit,newdata = adult_test,type = 'class')
+confusionMatrix(Pred_Dct,adult_test$income,positive = ">50K")
+Dct_Accu <- confusionMatrix(Pred_Dct,adult_test$income,positive = ">50K")$overall["Accuracy"]
+
+#Visualize the decision tree
+rpart.plot(Dctfit)
+
+```
+
+From consufionMatrix, we can see the prediction accuracy of classification tree is 0.8366. The accuracy is a little bit worse than logistic regression. It may hit overfitting issue. While if we take a look of Sensitivity and Specificity, we would not agree that the model is good. With Sensitivity 0.4980 and Specificity 0.9488, it means the model predicts better for income "<=50k" instead of income ">50k".
+
+Last, we will try random forest model. Random forest is a collection of decision trees on randomly selected samples. Random forest can mitigate over fitting issue which usually occurs in decision tree model. We expect random forest model will be more accurate than classification tree.
+
+```{r message=FALSE, warning=FALSE}
+
+#Model 3: Random Forest
+
+RfFit<- randomForest(income~.,data= adult_train, importance = TRUE)
+Pred_Rf<- predict(RfFit,newdata = adult_test, type = 'class')
+confusionMatrix(Pred_Rf,adult_test$income,positive = ">50K")
+Rf_Accu <- confusionMatrix(Pred_Rf,adult_test$income,positive = ">50K")$overall["Accuracy"]
+
+```
+
+From consufionMatrix, we can see the prediction accuracy of random forest increases to 0.8584. While if we take a look of Sensitivity and Specificity, we would not agree that the model is a perfect one. With Sensitivity 0.6538 and Specificity 0.9263, it means the model predicts better for income "<=50k" but not income ">50k".
+
+Now we will take a look of variable importance.
+
+```{r}
+
+RfFit$importance
+
+rf_imp = data.table(RfFit$importance,names = rownames(RfFit$importance))[order(-MeanDecreaseGini)]
+
+rf_imp
+
+varImpPlot(RfFit)
+
+```
+
+From the above important variables plot, we can see that the most important variables are relationship and capital.gain.
+
+Now we compare the accuracy of four predictions.
+
+```{r}
+
+Accuracy_Comp<-data.frame(Model=c('Logistic Regression','Logistic Regression With Balanced Sample','Decision Tree','Random Forest'),Accuracy=c(Lgr_Accu,Lgr_Accu_Balanced,Dct_Accu,Rf_Accu))
+
+Accuracy_Comp
+
+```
+
+# CONCLUSION
+
+## Conclusion
+
+Now we know random forest has the best accuracy 0.8584 on predicting a given adult earning over 50k in four models. This result meets our expectation that random forest can mitigate over fitting issue which usually occurs in decision tree model therefore have better performance on predication. However all four models except the one "Logistic Regression With Balanced Sample" hit the same issue of low sensitivity.
+
+## Future Work
+We need more powerful machine learning algorithms and techniques to predict this imbalanced classification target. We may further optimize random forest model by using Hyperparameters technique or other optimization models.
