@@ -1,2 +1,3 @@
 # Adult-Census-Income-Project
 This data science project aims to tackle an income classification problem on Adult Census Data
+This project aims to tackle an income classification problem on Adult Census Data. The data was extracted from the 1994 Census bureau database by Ronny Kohavi and Barry Becker (Data Mining and Visualiza- tion, Silicon Graphics). A set of reasonably clean records was extracted using the following conditions: ((AAGE>16) && (AGI>100) && (AFNLWGT>1) && (HRSWK>0)). The prediction goal is to build a model that predicts whether a person made over $50K a year as best accuracy as possible.
